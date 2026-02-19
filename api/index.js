@@ -9,27 +9,39 @@ export default async function handler(req, res) {
   let browser = null;
 
   try {
-    // THIS URL IS THE KEY FIX:
-    // We download the browser executable at runtime to bypass Vercel file limits
+    // 1. Configure the browser path (Remote Download)
+    // We use v119 which is stable on Node 18
+    chromium.setGraphicsMode = false;
     const executablePath = await chromium.executablePath(
-      "https://github.com/Sparticuz/chromium/releases/download/v123.0.1/chromium-v123.0.1-pack.tar"
+      "https://github.com/Sparticuz/chromium/releases/download/v119.0.2/chromium-v119.0.2-pack.tar"
     );
 
+    // 2. Launch
     browser = await puppeteer.launch({
-      args: chromium.args,
+      args: [...chromium.args, "--hide-scrollbars", "--disable-web-security"],
       defaultViewport: chromium.defaultViewport,
       executablePath: executablePath,
-      headless: chromium.headless,
+      headless: "new", // Required for new puppeteer versions
       ignoreHTTPSErrors: true,
     });
 
     const page = await browser.newPage();
 
-    // Fake User Agent to look like a real Windows PC
-    await page.setUserAgent('Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/123.0.0.0 Safari/537.36');
+    // 3. Navigate
+    // We block images/fonts to make it faster and use less memory
+    await page.setRequestInterception(true);
+    page.on('request', (req) => {
+        if (['image', 'stylesheet', 'font'].includes(req.resourceType())) {
+            req.abort();
+        } else {
+            req.continue();
+        }
+    });
 
-    // Wait 6 seconds max for the page to load
-    await page.goto(url, { waitUntil: 'domcontentloaded', timeout: 6000 });
+    await page.goto(url, { 
+        waitUntil: 'domcontentloaded', 
+        timeout: 7000 
+    });
 
     const html = await page.content();
 
@@ -37,7 +49,8 @@ export default async function handler(req, res) {
     res.status(200).send(html);
 
   } catch (error) {
-    res.status(500).send('Error: ' + error.message);
+    console.error(error);
+    res.status(500).send('Server Error: ' + error.message);
   } finally {
     if (browser) await browser.close();
   }
