@@ -1,7 +1,7 @@
 {
   "name": "render-scraper",
   "dependencies": {
-    "puppeteer-core": "latest",
-    "@sparticuz/chromium": "latest"
+    "puppeteer-core": "^21.5.2",
+    "@sparticuz/chromium": "^119.0.0"
   }
 }
