@@ -4,46 +4,36 @@ import puppeteer from 'puppeteer-core';
 export default async function handler(req, res) {
   const { url } = req.query;
 
-  if (!url) {
-    return res.status(400).send('Please provide a ?url= parameter');
-  }
+  if (!url) return res.status(400).send('URL required');
 
   let browser = null;
 
   try {
-    // 1. Launch the browser
+    // REQUIRED: Tell chromium where fonts/graphics are
+    await chromium.font('https://raw.githack.com/googlei18n/noto-emoji/master/fonts/NotoColorEmoji.ttf');
+
     browser = await puppeteer.launch({
       args: chromium.args,
       defaultViewport: chromium.defaultViewport,
       executablePath: await chromium.executablePath(),
       headless: chromium.headless,
-      ignoreHTTPSErrors: true,
     });
 
-    // 2. Open a new page
     const page = await browser.newPage();
+    
+    // Set a fake user agent so websites don't block us immediately
+    await page.setUserAgent('Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/121.0.0.0 Safari/537.36');
 
-    // 3. Go to the URL and wait for the network to be idle (scripts loaded)
-    // We set a timeout of 8 seconds to prevent Vercel crashing
-    await page.goto(url, { 
-      waitUntil: 'networkidle0', 
-      timeout: 8000 
-    });
+    await page.goto(url, { waitUntil: 'networkidle0', timeout: 6000 });
 
-    // 4. Get the real rendered HTML
     const html = await page.content();
 
-    // 5. Send it back
     res.setHeader('Content-Type', 'text/html');
     res.status(200).send(html);
 
   } catch (error) {
-    // If it fails, send the error message
-    res.status(500).send('Error rendering page: ' + error.message);
+    res.status(500).send('Error: ' + error.message);
   } finally {
-    // Always close the browser to save memory
-    if (browser) {
-      await browser.close();
-    }
+    if (browser) await browser.close();
   }
 }
