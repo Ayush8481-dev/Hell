@@ -1,8 +1,7 @@
-const chromium = require('@sparticuz/chromium');
-const puppeteer = require('puppeteer-core');
+import chromium from '@sparticuz/chromium';
+import puppeteer from 'puppeteer-core';
 
 export default async function handler(req, res) {
-  // 1. Get the URL from the query parameter
   const { url } = req.query;
 
   if (!url) {
@@ -12,7 +11,6 @@ export default async function handler(req, res) {
   let browser = null;
 
   try {
-    // 2. Launch the browser (Vercel compatible setup)
     browser = await puppeteer.launch({
       args: chromium.args,
       defaultViewport: chromium.defaultViewport,
@@ -21,17 +19,30 @@ export default async function handler(req, res) {
       ignoreHTTPSErrors: true,
     });
 
-    // 3. Open a new page
     const page = await browser.newPage();
 
-    // 4. Go to the target website and wait for network to be idle (JS finished)
-    await page.goto(url, { waitUntil: 'networkidle0' });
+    // 1. Go to URL and wait for content to load
+    await page.goto(url, { waitUntil: 'domcontentloaded' });
 
-    // 5. Get the rendered HTML
-    const html = await page.content();
+    // 2. Extract ONLY text and links using page.evaluate
+    const data = await page.evaluate(() => {
+      // Get all visible text (innerText ignores <script> and hidden styles)
+      const textContent = document.body.innerText;
 
-    // 6. Return the HTML as text
-    res.status(200).send(html);
+      // Get all links from <a> tags
+      const linkArray = Array.from(document.querySelectorAll('a'))
+        .map(a => a.href) // Get the href attribute
+        .filter(href => href && href.startsWith('http')); // Filter out empty or dead links
+
+      // Return clean object
+      return {
+        text: textContent,
+        links: linkArray
+      };
+    });
+
+    // 3. Return the data as JSON
+    res.status(200).json(data);
 
   } catch (error) {
     res.status(500).json({ error: error.message });
