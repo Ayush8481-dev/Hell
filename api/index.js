@@ -1,4 +1,4 @@
-import chromium from '@sparticuz/chromium';
+import chromium from '@sparticuz/chromium-min';
 import puppeteer from 'puppeteer-core';
 
 export default async function handler(req, res) {
@@ -9,22 +9,27 @@ export default async function handler(req, res) {
   let browser = null;
 
   try {
-    // REQUIRED: Tell chromium where fonts/graphics are
-    await chromium.font('https://raw.githack.com/googlei18n/noto-emoji/master/fonts/NotoColorEmoji.ttf');
+    // THIS URL IS THE KEY FIX:
+    // We download the browser executable at runtime to bypass Vercel file limits
+    const executablePath = await chromium.executablePath(
+      "https://github.com/Sparticuz/chromium/releases/download/v123.0.1/chromium-v123.0.1-pack.tar"
+    );
 
     browser = await puppeteer.launch({
       args: chromium.args,
       defaultViewport: chromium.defaultViewport,
-      executablePath: await chromium.executablePath(),
+      executablePath: executablePath,
       headless: chromium.headless,
+      ignoreHTTPSErrors: true,
     });
 
     const page = await browser.newPage();
-    
-    // Set a fake user agent so websites don't block us immediately
-    await page.setUserAgent('Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/121.0.0.0 Safari/537.36');
 
-    await page.goto(url, { waitUntil: 'networkidle0', timeout: 6000 });
+    // Fake User Agent to look like a real Windows PC
+    await page.setUserAgent('Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/123.0.0.0 Safari/537.36');
+
+    // Wait 6 seconds max for the page to load
+    await page.goto(url, { waitUntil: 'domcontentloaded', timeout: 6000 });
 
     const html = await page.content();
 
